@@ -1,0 +1,7 @@
+output
+__pycache__
+.vscode
+log
+.DS_Store
+test
+data
