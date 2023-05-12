@@ -1,9 +1,10 @@
 import re
 import json
 from time import time
-from scrapy.http import Request
-from scrapy.http import Response
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 def get_blog_item(data):
     '''Get blog item by Weibo response JSON data.
@@ -23,7 +24,8 @@ def get_blog_item(data):
 
         'content': data['text_raw'].replace('\u200b', ''),
         'pic_num': data['pic_num'],
-        'pic_ids': data['pic_ids'],
+        # TODO - pic in text extract fail.
+        'pic_ids': [pic['pic_id'] for pic in data.get('pic_focus_point', {})],
 
         'reposts_count': data['reposts_count'],
         'comments_count': data['comments_count'],
@@ -42,15 +44,20 @@ def get_blog_item(data):
 
     return item
 
-def parse_long_text(res: Response):
+def parse_long_text(response, item):
     '''Parse entire text content for long blog.
     '''
 
-    data: dict = json.loads(res.text)['data']
-
-    if data['ok']:
-        item = res.meta['item']
-        item['content'] = data['longTextContent'].replace('\u200b', '')
-        yield item
+    res = json.loads(response.text)
+    ok = res['ok']
+    longTextContent = res.get('data', {}).get('longTextContent', '')
+    if not ok:
+        logger.info(f'Long-text content request failed - {res["ok"] = } {res.get("message", "") = }')
     else:
-        yield Request(res.url, parse_long_text, dont_filter=True, meta={'item': res.meta['item']})
+        if longTextContent:
+            item['content'] = longTextContent
+            yield item
+        else:
+            req = response.request
+            req.dont_filter = True
+            yield req

@@ -6,9 +6,6 @@ from WeiboScrapy import config
 
 
 class SearchPipeline:
-    '''Search spider output JSONL pipeline.
-    '''
-
     count = 0
 
     def open_spider(self, spider):
@@ -32,3 +29,16 @@ class SearchPipeline:
         self.file.close()
         new_file_name = re.sub('\.jsonl', f'_{self.count}.jsonl', self.file_name)
         os.rename(f'./output/{self.file_name}', f'./output/{new_file_name}')
+
+class HistoryPipeline:
+    def open_spider(self, spider):
+        self.output_path = './output/hisotry/' + re.search('.*/(.*)\.jsonl', spider.user_file).group(1)
+        os.makedirs(self.output_path, exist_ok=True)
+
+    def process_item(self, item, spider):
+        uid = item['uid']
+        with open(f'{self.output_path}/{uid}.jsonl', 'a') as f:
+            line = json.dumps(item, ensure_ascii=False) + '\n'
+            f.write(line)
+
+        return item

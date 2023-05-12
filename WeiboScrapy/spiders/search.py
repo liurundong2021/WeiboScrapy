@@ -1,5 +1,6 @@
 import re
 import json
+from datetime import datetime
 from WeiboScrapy import config
 from datetime import datetime
 from datetime import timedelta
@@ -10,12 +11,11 @@ from scrapy.http import Request
 
 
 class SearchSpider(Spider):
-    '''Search spider.
+    '''Search Spider.
 
     Crawl search result by advance search on Weibo.
 
     Attributes:
-        name: Spider name.
         kw: Search keyword
         tf: time from
         tt: time to
@@ -97,12 +97,12 @@ class SearchSpider(Spider):
                 yield Request(url)
             dt += timedelta(hours=1)
 
-    def parse(self, respons):
+    def parse(self, response):
         '''Parse search result page.
 
         Send Weibo request, get response and extract mbid. Then send blog info Request, parse blog content.
         '''
-        html = respons.text
+        html = response.text
 
         if 'card-no-result' in html:
             pass
@@ -132,16 +132,16 @@ class SearchSpider(Spider):
 
         return url
 
-    def parse_blog(self, respons):
+    def parse_blog(self, response):
         '''Parse blog info.
         '''
 
-        data = json.loads(respons.text)
+        data = json.loads(response.text)
         item = get_blog_item(data)
 
         if item['isLongText']:
             mbid = item['mblogid']
             url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
-            yield Request(url, parse_long_text, meta={'item': item}, priority=3)
+            yield Request(url, parse_long_text, cb_kwargs={'item': item}, priority=3)
         else:
             yield item

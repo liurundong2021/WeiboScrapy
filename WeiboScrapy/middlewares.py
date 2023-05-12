@@ -182,6 +182,7 @@ class CookiePoolMiddleware():
             return request
         elif response.status == 414:
             spider.crawler.engine.close_spider(self, reason='Frequently request has been detect, spider closed. Please increase DOWNLOAD_DELAY.')
+            return request
         else:
             # Signal to tell cookie is alive.
             self.pool[ck_name]['status'] = 0
