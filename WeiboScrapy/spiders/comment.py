@@ -1,6 +1,7 @@
 import re
 import json
 import scrapy
+from time import time
 from tqdm import tqdm
 from WeiboScrapy import config
 from scrapy.http import Request
@@ -35,12 +36,13 @@ class CommentSpider(scrapy.Spider):
             yield Request(url)
 
     def parse(self, response):
+        # TODO - When there is picture in comment.
         ret = json.loads(response.text)
         max_id = ret.get('max_id')
-        data = ret['data']
+        comments = ret['data']
         mid = re.search(r'id=(\d+)', response.url).group(1)
 
-        for comment in data:
+        for comment in comments:
             item = {
                 'origin_mid': mid,
                 'uid': comment['user']['idstr'],
@@ -51,7 +53,8 @@ class CommentSpider(scrapy.Spider):
                 'text': comment['text_raw'],
                 'rootid': comment['rootidstr'],
                 'readtimetype': comment['readtimetype'],
-                'reply_id': comment.get('reply_comment', {}).get('idstr', '')
+                'reply_id': comment.get('reply_comment', {}).get('idstr', ''),
+                'ts': int(time())
             }
             yield item
 

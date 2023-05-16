@@ -72,33 +72,17 @@ class UserSpider(scrapy.Spider):
         url = f"https://weibo.com/ajax/profile/detail?uid={item['uid']}"
         yield Request(url, self.parse_detail, cb_kwargs={'item': item})
 
-    def parse_detail(self, response, item:dict, **kwargs):
+    def parse_detail(self, response, item:dict):
         data: dict = json.loads(response.text)['data']
 
         item['location'] = data.get('ip_location', '').replace('IP属地：', '')
         if not item['location']:
             item['location'] = data.get('location', '')
         item['location'] = re.sub(r'\s.*', '', item['location'])
-        # if data.get('ip_location', ''):
-        #     location = data['ip_location'].replace('IP属地：', '')
-        # elif data.get('location', ''):
-        #     location = data['location']
-        # else:
-        #     location = ''
-
-        # loc_flag = kwargs.get('loc_flag', 0)
-        # Sometimes user has location but return '其他' or ''.
-        # Some user's location is '其他' exactly.
-        # if (not location or '其他' in location) and loc_flag < 5:
-        #     req = response.request
-        #     req.dont_filter = True
-        #     req.cb_kwargs['loc_flag'] = loc_flag
-        #     yield req
-        # else:
         item['created_at'] = data.get('created_at')
         item['credit_level'] = data.get('sunshine_credit', {}).get('level', '')
         item['education'] = data.get('education', {}).get('school', '')
-        # item['location'] = location.replace('IP属地：', '')
+
         url = f'https://weibo.com/ajax/profile/mbloghistory?uid={item["uid"]}'
         yield Request(url, self.parse_mbloghistory, cb_kwargs={'item': item})
 

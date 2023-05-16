@@ -172,7 +172,6 @@ class CookiePoolMiddleware():
         if "usernotexists" in response.text:
             uid = re.search("uid=(\d*)", response.url).group(1)
             logger.info(f"User do not exist! - {uid = }")
-            raise StopDownload(fail=False)
         elif response.status in [302, 400]:
             self.pool[ck_name]['status'] += 1
             new_ck_name = self.get_ck_name()

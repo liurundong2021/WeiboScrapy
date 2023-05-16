@@ -35,7 +35,8 @@ class SearchPipeline:
 
 class HistoryPipeline:
     def open_spider(self, spider):
-        self.output_path = './output/history_500/' + re.search('.*/(.*)\.jsonl', spider.user_file).group(1)
+        name = re.search(r".*/(.*)\.jsonl", config.history["user_file"]).group(1)
+        self.output_path = config.history['output_path'] + name
         os.makedirs(self.output_path)
 
     def process_item(self, item, spider):
@@ -64,6 +65,18 @@ class CommentPipeline:
     def open_spider(self, spider):
         ts = int(time())
         self.output_path = f'./output/comment_{ts}/'
+        os.mkdir(self.output_path)
+
+    def process_item(self, item, spider):
+        file = self.output_path + item['origin_mid'] + '.jsonl'
+        with open(file, 'a') as f:
+            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+        return item
+
+class RepostPipeline:
+    def open_spider(self, spider):
+        ts = int(time())
+        self.output_path = f'./output/repost_{ts}/'
         os.mkdir(self.output_path)
 
     def process_item(self, item, spider):

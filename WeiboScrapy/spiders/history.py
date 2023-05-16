@@ -3,7 +3,6 @@ import json
 import time
 import scrapy
 from tqdm import tqdm
-from datetime import datetime
 from WeiboScrapy import config
 from scrapy.http import Request
 from WeiboScrapy.util import get_blog_item
@@ -30,13 +29,14 @@ class HistorySpider(scrapy.Spider):
         }
     }
 
+    users = []
+
     def __init__(self):
         self.user_file = config.history['user_file']
         self.ts_from = int(time.mktime(time.strptime(config.history['time']['from'], '%Y-%m-%d')))
         self.ts_to = int(time.mktime(time.strptime(config.history['time']['to'], '%Y-%m-%d')))
+        self.need_lt = config.history['need_lt']
 
-    def start_requests(self):
-        users = [dict]
         with open(self.user_file) as f:
             while 1:
                 line = f.readline()
@@ -63,21 +63,16 @@ class HistorySpider(scrapy.Spider):
                     'ts_start': ts_start,
                     'history': history
                 }
-                users.append(user)
+                self.users.append(user)
 
-        # Generate requests.
-        for user in tqdm(users):
+    def start_requests(self):
+        for user in tqdm(self.users):
             step = user['step']
+            ts_start = user['ts_start']
             url = f'https://weibo.com/ajax/statuses/searchProfile?uid={user["uid"]}&page=1&feature=4'
             for ts in range(ts_start, self.ts_to, step):
-                dt_start = datetime.fromtimestamp(ts)
-                dt_end = datetime.fromtimestamp(ts + step)
-                if str(dt_start.month) not in user.get(str(dt_start.year), []) \
-                    and str(dt_end.month) not in user.get(str(dt_end.year), []):
-                    continue
-                else:
-                    search_url = url + f'&starttime={ts}&endtime={ts + step}'
-                    yield Request(search_url)
+                search_url = url + f'&starttime={ts}&endtime={ts + step}'
+                yield Request(search_url)
             search_url = url + f'&starttime={ts}&endtime={self.ts_to}'
             yield Request(search_url)
 
@@ -102,7 +97,7 @@ class HistorySpider(scrapy.Spider):
                     continue
 
                 # Get long-text content.
-                if item['isLongText']:
+                if self.need_lt and item['isLongText']:
                     mbid = item['mblogid']
                     url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
                     yield Request(url, parse_long_text, cb_kwargs={'item': item})

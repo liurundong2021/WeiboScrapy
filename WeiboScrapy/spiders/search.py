@@ -56,6 +56,7 @@ class SearchSpider(Spider):
         self.tt = config.search['time']['to']
         self.ct = config.search['content']['type']
         self.ci = config.search['content']['include']
+        self.need_lt = config.search['need_lt']
 
         self.logger.info(
             'Search spider start...\n' +
@@ -102,11 +103,11 @@ class SearchSpider(Spider):
             mbids = re.findall(r'weibo\.com/\d+/(.+?)\?refer_flag=1001030103_" ', html)
             for mbid in mbids:
                 url = f'https://weibo.com/ajax/statuses/show?id={mbid}'
-                yield Request(url, self.parse_blog, priority=2)
+                yield Request(url, self.parse_blog)
             next_page = re.search('<a href="(.*?)" class="next">下一页</a>', html)
             if next_page:
                 url = 'https://s.weibo.com' + next_page.group(1)
-                yield Request(url, priority=1)
+                yield Request(url)
 
     def get_search_url(self, dt: datetime, ct='', ci=''):
         '''Generate search URL.
@@ -131,9 +132,9 @@ class SearchSpider(Spider):
         data = json.loads(response.text)
         item = get_blog_item(data)
 
-        if item['isLongText']:
+        if self.need_lt and item['isLongText']:
             mbid = item['mblogid']
             url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
-            yield Request(url, parse_long_text, cb_kwargs={'item': item}, priority=3)
+            yield Request(url, parse_long_text, cb_kwargs={'item': item})
         else:
             yield item

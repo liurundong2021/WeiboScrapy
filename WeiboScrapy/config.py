@@ -1,27 +1,34 @@
 search = {
-    'keyword': '淄博',
+    'keyword': '北京',
     'time': {
-        'from': '2023-04-10-00',
+        'from': '2023-04-17-00',
         'to': '2023-04-20-00'
     },
     'content': {
         'type': 'all',
         'include': 'all'
-    }
+    },
+    'need_lt': False
 }
 
 history = {
-    'user_file': './output/users_500/1.jsonl',
+    'user_file': 'data/北京/users.jsonl',
     'time': {
-        'from': '2022-03-01',
-        'to': '2023-03-01'
-    }
+        'from': '2022-04-01',
+        'to': '2023-04-01'
+    },
+    'output_path': './data/北京/history/',
+    'need_lt': False
 }
 
 user = {
-    'blog_file': './output/淄博_2023-04-01-00_2023-05-10-00_all_all_47603.jsonl'
+    'blog_file': './output/北京.jsonl'
 }
 
 comment = {
+    'blog_file': './data/blog.jsonl'
+}
+
+repost = {
     'blog_file': './data/blog.jsonl'
 }
