@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_blog_item(data):
+def get_blog_item(data: dict):
     '''Get blog item by Weibo response JSON data.
     '''
 
@@ -24,8 +24,9 @@ def get_blog_item(data):
 
         'content': data['text_raw'].replace('\u200b', ''),
         'pic_num': data['pic_num'],
-        # TODO - pic in text extract fail.
-        'pic_ids': [pic['pic_id'] for pic in data.get('pic_focus_point', {})],
+        'pic_ids': data.get('pic_ids', []),
+        'video_url': '',
+        'article_id': '',
 
         'reposts_count': data['reposts_count'],
         'comments_count': data['comments_count'],
@@ -34,13 +35,27 @@ def get_blog_item(data):
 
         'ts': int(time()),
     }
-    # TODO - object: video, article...
-    # video url
-    # if 'page_info' in data and data['page_info'].get('object_type', '') == 'video':
-    #     if 'cards' in data['page_info']:
-    #         item['video'] = data['page_info']['cards'][0]['media_info']['stream_url']
-    #     else:
-    #         item['video'] = data['page_info']['media_info']['mp4_720p_mp4']
+
+    # Get other type pic.
+    if item['pic_num'] != len(item['pic_ids']):
+        if item['pic_num'] == len(item['pic_ids']) + 1:
+            pic_re = re.search('mapi/(.*)\s?', data['text_raw'])
+            if pic_re:
+                item['pic_ids'].append(pic_re.group(1))
+            else:
+                logger.warning(f'Can not get pic url in text - {item["mblogid"] = }, {item["uid"] = }')
+        else:
+            logger.warning(f'pic_nums and len(pic_ids) not pare - {item["mblogid"] = }, {item["uid"] = }, {item["pic_num"] = }, {len(item["pic_ids"]) = }')
+
+    text = json.dumps(data, ensure_ascii=False)
+    # If has video, get video url.
+    video_re = re.search(r'"(http://f.video.weibocdn.com/.*?)"', text)
+    if video_re:
+        item['video_url'] = video_re.group(1)
+    # If has article, get article id.
+    article_re = re.search(r'https://weibo.com/ttarticle/p/show\?id=(\d*)', text)
+    if article_re:
+        item['article_id'] = article_re.group(1)
 
     return item
 
@@ -52,7 +67,7 @@ def parse_long_text(response, item):
     ok = res['ok']
     longTextContent = res.get('data', {}).get('longTextContent', '')
     if not ok:
-        logger.info(f'Long-text content request failed - {res["ok"] = } {res.get("message", "") = }')
+        logger.info(f'Long-text content request failed - {item["mblogid"] = }, {item["uid"] = }, {res.get("message", "") = }')
     else:
         if longTextContent:
             item['content'] = longTextContent

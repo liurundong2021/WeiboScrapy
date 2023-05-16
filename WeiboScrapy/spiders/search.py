@@ -67,15 +67,11 @@ class SearchSpider(Spider):
         )
 
     def start_requests(self):
-        # format datetime
         dt_from = datetime.strptime(self.tf, self.dt_parse_format)
         dt_to = datetime.strptime(self.tt, self.dt_parse_format)
         dt = dt_from
 
-        # traverse timescope
         while(dt < dt_to):
-            # traverse search content type and content include
-            # scrapy会自动过滤重复web请求，最终爬取到的数据不会冗余
             dt_str_from = dt.strftime(self.dt_parse_format)
             dt_str_to = (dt + timedelta(hours=1)).strftime(self.dt_parse_format)
             self.logger.info(f'Crawling: keyword = {self.kw} timescope = :{dt_str_from}:{dt_str_to}')
@@ -98,10 +94,6 @@ class SearchSpider(Spider):
             dt += timedelta(hours=1)
 
     def parse(self, response):
-        '''Parse search result page.
-
-        Send Weibo request, get response and extract mbid. Then send blog info Request, parse blog content.
-        '''
         html = response.text
 
         if 'card-no-result' in html:

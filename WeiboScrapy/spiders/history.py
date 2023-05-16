@@ -3,9 +3,11 @@ import json
 import time
 import scrapy
 from tqdm import tqdm
+from datetime import datetime
 from WeiboScrapy import config
 from scrapy.http import Request
 from WeiboScrapy.util import get_blog_item
+from WeiboScrapy.util import parse_long_text
 
 
 class HistorySpider(scrapy.Spider):
@@ -13,12 +15,10 @@ class HistorySpider(scrapy.Spider):
 
     Crawl user hisotry blog.
 
-    For efficiency, this spider don't crawl long-text blog content, must run long-text spider after.
-
     Attributes:
         user_file: A jsonl file write user info by line.
-        time_from_dt: Date from.
-        time_to_dt: Date to.
+        ts_from: Timestamp from.
+        ts_to: Timestamp to.
     '''
 
     name = "history"
@@ -36,29 +36,50 @@ class HistorySpider(scrapy.Spider):
         self.ts_to = int(time.mktime(time.strptime(config.history['time']['to'], '%Y-%m-%d')))
 
     def start_requests(self):
-        uids = []
+        users = [dict]
         with open(self.user_file) as f:
             while 1:
                 line = f.readline()
                 if not line:
                     break
 
-                rc = json.loads(line)
-                uid = rc['uid']
-                uids.append(uid)
+                item = json.loads(line)
+                total = item['total']
+                history = item['history']
+                if not total:           # No history blogs.
+                    continue
+                avg_blogs, ts_start = self.avg_blogs_ts_start(history, total)
+                if not ts_start:
+                    continue
+                if avg_blogs < 1000:
+                    step = 864000       # 10 days.
+                elif avg_blogs < 5000:
+                    step = 432000       # 5 days.
+                else:
+                    step = 86400        # 1 day.
+                user = {
+                    'uid': item['uid'],
+                    'step': step,
+                    'ts_start': ts_start,
+                    'history': history
+                }
+                users.append(user)
 
-        for uid in tqdm(uids):
-            step = 1000000
-            url = f'https://weibo.com/ajax/statuses/searchProfile?uid={uid}&page=1&feature=4'
-            if self.ts_to - self.ts_from <= step:
-                search_url = url + f'&starttime={self.ts_from}&endtime={self.ts_to}'
-                yield Request(search_url)
-            else:
-                for ts in range(self.ts_from, self.ts_to, step):
+        # Generate requests.
+        for user in tqdm(users):
+            step = user['step']
+            url = f'https://weibo.com/ajax/statuses/searchProfile?uid={user["uid"]}&page=1&feature=4'
+            for ts in range(ts_start, self.ts_to, step):
+                dt_start = datetime.fromtimestamp(ts)
+                dt_end = datetime.fromtimestamp(ts + step)
+                if str(dt_start.month) not in user.get(str(dt_start.year), []) \
+                    and str(dt_end.month) not in user.get(str(dt_end.year), []):
+                    continue
+                else:
                     search_url = url + f'&starttime={ts}&endtime={ts + step}'
                     yield Request(search_url)
-                search_url = url + f'&starttime={ts}&endtime={self.ts_to}'
-                yield Request(search_url)
+            search_url = url + f'&starttime={ts}&endtime={self.ts_to}'
+            yield Request(search_url)
 
     def parse(self, response):
         ret = json.loads(response.text)
@@ -74,16 +95,41 @@ class HistorySpider(scrapy.Spider):
             for blog in blogs:
                 item = get_blog_item(blog)
 
-                # 过滤转发的内容，选择原创微博
+                # Only select origin blog.
                 uid = re.search('uid=(\d*)', response.url).group(1)
                 if blog.get('retweeted_status', None) or item['uid'] != uid:
                     self.logger.debug(f'Not self blog - url = https://weibo.com/{item["uid"]}/{item["mblogid"]}')
                     continue
 
-                yield item
+                # Get long-text content.
+                if item['isLongText']:
+                    mbid = item['mblogid']
+                    url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
+                    yield Request(url, parse_long_text, cb_kwargs={'item': item})
+                else:
+                    yield item
 
             if len(blogs) == 20:
                 url = re.sub('page=(\d*)', lambda matchobj: 'page=' + str(int(matchobj.group(1)) + 1), response.url)
-                yield Request(url, priority=1)
+                yield Request(url)
         elif re.search('page=(\d*)', response.url).group(1) == '51':
             self.logger.warning(f'Page = 51 - {response.url = }')
+
+    def avg_blogs_ts_start(self, history: dict, total: int) -> tuple[int, int]:
+        '''Coumpute to get search history time step, and get timestamp start.
+        '''
+
+        count = 0
+        ts_start = 0
+        for y in history:
+            for m in history[y]:
+                ts = time.mktime(time.strptime(f'{y}-{m}', '%Y-%m'))
+                if ts < self.ts_to and ts > self.ts_from:
+                    if count == 0:
+                        ts_start = int(ts)
+                    count += 1
+        if not ts_start:        # If no blogs in time interval.
+            return 0, 0
+        else:
+            avg_blogs = int(total / count)
+            return avg_blogs, ts_start
