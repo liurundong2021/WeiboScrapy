@@ -1,9 +1,9 @@
 import re
 import json
 from datetime import datetime
-from WeiboScrapy import config
 from datetime import datetime
 from datetime import timedelta
+from WeiboScrapy import settings
 from WeiboScrapy.util import get_blog_item
 from WeiboScrapy.util import parse_long_text
 from scrapy import Spider
@@ -27,10 +27,9 @@ class SearchSpider(Spider):
     '''
 
     name = 'search'
-    allowed_domains = ['weibo.com']
 
     custom_settings = {
-        'ITEM_PIPELINES': {
+        'ITEM_PIPELINES': settings.ITEM_PIPELINES | {
             'WeiboScrapy.pipelines.SearchPipeline': 300
         }
     }
@@ -51,12 +50,12 @@ class SearchSpider(Spider):
     }
 
     def __init__(self):
-        self.kw = config.search['keyword']
-        self.tf = config.search['time']['from']
-        self.tt = config.search['time']['to']
-        self.ct = config.search['content']['type']
-        self.ci = config.search['content']['include']
-        self.need_lt = config.search['need_lt']
+        self.kw = settings.search['keyword']
+        self.tf = settings.search['time']['from']
+        self.tt = settings.search['time']['to']
+        self.ct = settings.search['content']['type']
+        self.ci = settings.search['content']['include']
+        self.long_text = settings.long_text
 
         self.logger.info(
             'Search spider start...\n' +
@@ -109,6 +108,24 @@ class SearchSpider(Spider):
                 url = 'https://s.weibo.com' + next_page.group(1)
                 yield Request(url)
 
+    def parse_blog(self, response):
+        '''Parse blog info.
+        '''
+
+        ret = json.loads(response.text)
+        if 'retweeted_status' not in ret:
+            item = get_blog_item(ret)
+
+            if self.long_text and item['isLongText']:
+                mbid = item['mblogid']
+                url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
+                yield Request(url, parse_long_text, cb_kwargs={'item': item})
+            else:
+                yield item
+        elif settings.retweet:
+            # TODO: parse retweet blog.
+            pass
+
     def get_search_url(self, dt: datetime, ct='', ci=''):
         '''Generate search URL.
         '''
@@ -124,17 +141,3 @@ class SearchSpider(Spider):
         )
 
         return url
-
-    def parse_blog(self, response):
-        '''Parse blog info.
-        '''
-
-        data = json.loads(response.text)
-        item = get_blog_item(data)
-
-        if self.need_lt and item['isLongText']:
-            mbid = item['mblogid']
-            url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
-            yield Request(url, parse_long_text, cb_kwargs={'item': item})
-        else:
-            yield item

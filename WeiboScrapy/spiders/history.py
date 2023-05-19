@@ -3,8 +3,8 @@ import json
 import time
 import scrapy
 from tqdm import tqdm
-from WeiboScrapy import config
 from scrapy.http import Request
+from WeiboScrapy import settings
 from WeiboScrapy.util import get_blog_item
 from WeiboScrapy.util import parse_long_text
 
@@ -24,7 +24,7 @@ class HistorySpider(scrapy.Spider):
     allowed_domains = ["weibo.com"]
 
     custom_settings = {
-        'ITEM_PIPELINES': {
+        'ITEM_PIPELINES': settings.ITEM_PIPELINES | {
             'WeiboScrapy.pipelines.HistoryPipeline': 300
         }
     }
@@ -32,10 +32,9 @@ class HistorySpider(scrapy.Spider):
     users = []
 
     def __init__(self):
-        self.user_file = config.history['user_file']
-        self.ts_from = int(time.mktime(time.strptime(config.history['time']['from'], '%Y-%m-%d')))
-        self.ts_to = int(time.mktime(time.strptime(config.history['time']['to'], '%Y-%m-%d')))
-        self.need_lt = config.history['need_lt']
+        self.user_file = settings.history['user_file']
+        self.ts_from = int(time.mktime(time.strptime(settings.history['time']['from'], '%Y-%m-%d')))
+        self.ts_to = int(time.mktime(time.strptime(settings.history['time']['to'], '%Y-%m-%d')))
 
         with open(self.user_file) as f:
             while 1:
@@ -92,12 +91,12 @@ class HistorySpider(scrapy.Spider):
 
                 # Only select origin blog.
                 uid = re.search('uid=(\d*)', response.url).group(1)
-                if blog.get('retweeted_status', None) or item['uid'] != uid:
+                if not settings.retweet and ('retweeted_status' in blog or item['uid'] != uid):
                     self.logger.debug(f'Not self blog - url = https://weibo.com/{item["uid"]}/{item["mblogid"]}')
                     continue
 
                 # Get long-text content.
-                if self.need_lt and item['isLongText']:
+                if settings.long_text and item['isLongText']:
                     mbid = item['mblogid']
                     url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
                     yield Request(url, parse_long_text, cb_kwargs={'item': item})

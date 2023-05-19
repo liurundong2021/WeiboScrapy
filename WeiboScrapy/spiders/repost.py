@@ -3,24 +3,24 @@ import json
 import scrapy
 from time import time
 from tqdm import tqdm
-from WeiboScrapy import config
 from scrapy.http import Request
+from WeiboScrapy import settings
 
-
+# TODO: need complete.
+# 1. merge retweet item to blog item, add a flag to distinguish them. See get_blog_item in util.py
 class RepostSpider(scrapy.Spider):
     name = "repost"
-    allowed_domains = ["weibo.com"]
 
     custom_settings = {
-        'ITEM_PIPELINES': {
-            'WeiboScrapy.pipelines.RepostPipeline': 300
+        'ITEM_PIPELINES': settings.ITEM_PIPELINES | {
+            'WeiboScrapy.pipelines.CommentRepostPipeline': 300
         }
     }
 
     mids = set()
 
     def __init__(self):
-        with open(config.comment['blog_file']) as f:
+        with open(settings.comment['blog_file']) as f:
             while 1:
                 line = f.readline()
                 if not line:

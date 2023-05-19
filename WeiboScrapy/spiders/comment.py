@@ -3,7 +3,7 @@ import json
 import scrapy
 from time import time
 from tqdm import tqdm
-from WeiboScrapy import config
+from WeiboScrapy import settings
 from scrapy.http import Request
 
 
@@ -13,14 +13,14 @@ class CommentSpider(scrapy.Spider):
 
     custom_settings = {
         'ITEM_PIPELINES': {
-            'WeiboScrapy.pipelines.CommentPipeline': 300
+            'WeiboScrapy.pipelines.CommentRepostPipeline': 300
         }
     }
 
     mids = set()
 
     def __init__(self):
-        with open(config.comment['blog_file']) as f:
+        with open(settings.comment['blog_file']) as f:
             while 1:
                 line = f.readline()
                 if not line:

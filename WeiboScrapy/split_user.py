@@ -1,10 +1,17 @@
+'''This function is for crawl user history.
+
+If the time set for crawl history is long, crawl a user need many times,
+especially YingXiaoHao, post many blogs a day. So you may best split the
+user file first, then crawl them one by one, finally merge them.
+'''
+
 import re
 import os
 
 
 size = 200
 flag = False
-file = './data/北京_04-01-00_04-17-00/users.jsonl'
+file = './data/淄博_04-01-00_04-17-00/users.jsonl'
 
 output_path = re.search('(.*/)', file).group(1) + f'user_split_{size}/'
 os.mkdir(output_path)

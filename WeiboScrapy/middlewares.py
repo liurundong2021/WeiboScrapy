@@ -1,116 +1,10 @@
-# Define here the models for your spider middleware
-#
-# See documentation in:
-# https://docs.scrapy.org/en/latest/topics/spider-middleware.html
-
-from scrapy import signals
-
-# useful for handling different item types with a single interface
-from itemadapter import is_item, ItemAdapter
-
-import re
 import json
 import logging
-from WeiboScrapy.settings import DEFAULT_REQUEST_HEADERS
 from requests import get
 from scrapy.exceptions import CloseSpider
-from scrapy.exceptions import StopDownload
 
 
 logger = logging.getLogger(__name__)
-
-# class WeiboscrapySpiderMiddleware:
-#     # Not all methods need to be defined. If a method is not defined,
-#     # scrapy acts as if the spider middleware does not modify the
-#     # passed objects.
-
-#     @classmethod
-#     def from_crawler(cls, crawler):
-#         # This method is used by Scrapy to create your spiders.
-#         s = cls()
-#         crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
-#         return s
-
-#     def process_spider_input(self, response, spider):
-#         # Called for each response that goes through the spider
-#         # middleware and into the spider.
-
-#         # Should return None or raise an exception.
-#         return None
-
-#     def process_spider_output(self, response, result, spider):
-#         # Called with the results returned from the Spider, after
-#         # it has processed the response.
-
-#         # Must return an iterable of Request, or item objects.
-#         for i in result:
-#             yield i
-
-#     def process_spider_exception(self, response, exception, spider):
-#         # Called when a spider or process_spider_input() method
-#         # (from other spider middleware) raises an exception.
-
-#         # Should return either None or an iterable of Request or item objects.
-#         pass
-
-#     def process_start_requests(self, start_requests, spider):
-#         # Called with the start requests of the spider, and works
-#         # similarly to the process_spider_output() method, except
-#         # that it doesn’t have a response associated.
-
-#         # Must return only requests (not items).
-#         for r in start_requests:
-#             yield r
-
-#     def spider_opened(self, spider):
-#         spider.logger.info("Spider opened: %s" % spider.name)
-
-
-# # class WeiboscrapyDownloaderMiddleware:
-#     # Not all methods need to be defined. If a method is not defined,
-#     # scrapy acts as if the downloader middleware does not modify the
-#     # passed objects.
-
-#     @classmethod
-#     def from_crawler(cls, crawler):
-#         # This method is used by Scrapy to create your spiders.
-#         s = cls()
-#         crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
-#         return s
-
-#     def process_request(self, request, spider):
-#         # Called for each request that goes through the downloader
-#         # middleware.
-
-#         # Must either:
-#         # - return None: continue processing this request
-#         # - or return a Response object
-#         # - or return a Request object
-#         # - or raise IgnoreRequest: process_exception() methods of
-#         #   installed downloader middleware will be called
-#         return None
-
-#     def process_response(self, request, response, spider):
-#         # Called with the response returned from the downloader.
-
-#         # Must either;
-#         # - return a Response object
-#         # - return a Request object
-#         # - or raise IgnoreRequest
-#         return response
-
-#     def process_exception(self, request, exception, spider):
-#         # Called when a download handler or a process_request()
-#         # (from other downloader middleware) raises an exception.
-
-#         # Must either:
-#         # - return None: continue processing this exception
-#         # - return a Response object: stops process_exception() chain
-#         # - return a Request object: stops process_exception() chain
-#         pass
-
-#     def spider_opened(self, spider):
-#         spider.logger.info("Spider opened: %s" % spider.name)
 
 class CookiePoolMiddleware():
     """Cookie pool middleware
@@ -129,27 +23,28 @@ class CookiePoolMiddleware():
     i = 0                   # Cookie index, for rotate cookie names.
 
     def __init__(self):
-        headers = DEFAULT_REQUEST_HEADERS
-        with open('WeiboScrapy/cookies.json') as f:
-            cookies = json.load(f)
+        headers = { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36' }
+
+        cookie_file = open('WeiboScrapy/cookies.json').read()
+        cookies = json.loads(cookie_file)
 
         logger.info("Testing cookie...")
-        for ck_name in cookies.keys():
+        for ck_name in cookies:
+            logger.debug(f'Testing {ck_name = }...')
             cookie = cookies[ck_name].strip()
             headers["Cookie"] = cookie
-            r = get("https://s.weibo.com/weibo?q=123", headers=headers, allow_redirects=False)
+            r = get("https://weibo.com/", headers=headers, allow_redirects=False)
 
             if r.status_code == 200:
                 self.pool[ck_name] = {"cookie": cookie, "status": 0}
                 self.ck_names.append(ck_name)
             else:
-                logger.warning(f"Cookie not available! - {ck_name = }, {r.status_code = }")
-
-        logger.info(f"Available cookie count: {len(self.pool)}")
+                logger.info(f"{ck_name = } not available.")
 
         if len(self.pool) == 0:
             raise CloseSpider("No cookie available, modify your 'cookies.json'.")
-
+        else:
+            logger.info(f"{len(self.pool)} cookies available.")
 
     def process_request(self, request, spider):
         """
@@ -159,6 +54,9 @@ class CookiePoolMiddleware():
         ck_name = self.get_ck_name()
         request.headers["cookie"] = bytes(self.pool[ck_name]["cookie"], "utf-8")
         request.meta["ck_name"] = ck_name
+        if 'sinaimg' in request.url:
+            # Success request weibo image need this referer value.
+            request.headers['Referer'] = bytes('https://weibo.com/', 'utf-8')
 
     def process_response(self, request, response, spider):
         """
@@ -167,19 +65,21 @@ class CookiePoolMiddleware():
 
         ck_name = request.meta['ck_name']
 
-        # TODO - Spider middleware.
-        # When crawl user, maybe user is not exist.
-        if "usernotexists" in response.text:
-            uid = re.search("uid=(\d*)", response.url).group(1)
-            logger.info(f"User do not exist! - {uid = }")
-        elif response.status in [302, 400]:
-            self.pool[ck_name]['status'] += 1
+        # Cookie outdate.
+        if 'login' in response.url or 'passport' in response.url:
+            logger.debug(f'{ck_name = } outdate.')
+            if ck_name in self.ck_names:
+                self.ck_names.remove(ck_name)
+            # Request again.
             new_ck_name = self.get_ck_name()
             request.headers['cookie'] = bytes(self.pool[new_ck_name]['cookie'], 'utf-8')
             request.dont_filter = True
             request.meta['ck_name'] = new_ck_name
             return request
+        # Request frequently.
         elif response.status == 414:
+            # TODO: do not close spider when frequently, rotate cookie pool or wait for some time.
+            # self.pool[ck_name]['status'] += 1
             spider.crawler.engine.close_spider(self, reason='Frequently request has been detect, spider closed. Please increase DOWNLOAD_DELAY.')
             return request
         else:
@@ -203,6 +103,7 @@ class CookiePoolMiddleware():
             if self.pool[ck_name]["status"] < 5:
                 return ck_name
             self.ck_names.remove(ck_name)
-            logger.warning(f"Cookie removed(expired)! - name: {ck_name}")
-            logger.info(f"Available cookie count: {len(self.ck_names)}")
-        raise CloseSpider('No cookie available! - get_ck_name')
+            logger.info(f"{ck_name = } expired.")
+            logger.info(f"{len(self.ck_names)} cookies available.")
+        # TODO: spider do not close.
+        raise CloseSpider('No cookie available!')
