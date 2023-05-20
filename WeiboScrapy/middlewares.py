@@ -67,7 +67,7 @@ class CookiePoolMiddleware():
 
         # Cookie outdate.
         if 'login' in response.url or 'passport' in response.url:
-            logger.debug(f'{ck_name = } outdate.')
+            logger.info(f'{ck_name = } outdate.')
             if ck_name in self.ck_names:
                 self.ck_names.remove(ck_name)
             # Request again.
@@ -80,7 +80,8 @@ class CookiePoolMiddleware():
         elif response.status == 414:
             # TODO: do not close spider when frequently, rotate cookie pool or wait for some time.
             # self.pool[ck_name]['status'] += 1
-            spider.crawler.engine.close_spider(self, reason='Frequently request has been detect, spider closed. Please increase DOWNLOAD_DELAY.')
+            logger.info('Request frequently.')
+            spider.crawler.engine.close_spider(spider, reason='Frequently request has been detect, spider closed. Please increase DOWNLOAD_DELAY.')
             return request
         else:
             # Signal to tell cookie is alive.
@@ -107,3 +108,11 @@ class CookiePoolMiddleware():
             logger.info(f"{len(self.ck_names)} cookies available.")
         # TODO: spider do not close.
         raise CloseSpider('No cookie available!')
+
+class ArticleMiddleware:
+    def process_response(self, request, response, spider):
+        if 'ttarticle' in request.url and '抱歉，出错啦' in response.text:
+            request.dont_filter = True
+            return request
+        else:
+            return response

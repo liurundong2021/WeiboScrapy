@@ -61,7 +61,7 @@ def get_blog_item(ret: dict):
             item['img_count'] += 1
             item['medias'][ret['pic_infos'][pic]['original']['url']] = 'img'
 
-    if '查看图片' in ret['text'].split('//<'):
+    if '查看图片' in ret['text'].split('//<')[0]:
         soup = BeautifulSoup(ret['text'], 'html.parser')
         links = soup.find_all('a')
         for link in links:

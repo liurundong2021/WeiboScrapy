@@ -20,7 +20,7 @@ class UserSpider(scrapy.Spider):
     uids = set()
 
     def __init__(self):
-        with open(settings.user['blog_file']) as f:
+        with open(settings.blog_file) as f:
             while 1:
                 line = f.readline()
                 if not line:
