@@ -1,13 +1,12 @@
 import re
-import json
 from datetime import datetime
 from datetime import datetime
 from datetime import timedelta
 from WeiboScrapy import settings
-from WeiboScrapy.util import get_blog_item
-from WeiboScrapy.util import parse_long_text
+from WeiboScrapy.util import parse_blog
 from scrapy import Spider
 from scrapy.http import Request
+from bs4 import BeautifulSoup
 
 
 class SearchSpider(Spider):
@@ -30,7 +29,8 @@ class SearchSpider(Spider):
 
     custom_settings = {
         'ITEM_PIPELINES': settings.ITEM_PIPELINES | {
-            'WeiboScrapy.pipelines.SearchPipeline': 300
+            'WeiboScrapy.pipelines.RetweetFilterPipeline': 200,
+            'WeiboScrapy.pipelines.SearchPipeline': 300,
         }
     }
 
@@ -99,37 +99,18 @@ class SearchSpider(Spider):
         if 'card-no-result' in html:
             pass
         else:
-            mbids = re.findall(r'weibo\.com/\d+/(.+?)\?refer_flag=1001030103_" ', html)
-            for mbid in mbids:
+            soup = BeautifulSoup(html, 'html.parser')
+            div_froms = soup.find_all('div', 'from')
+            for div_from in div_froms:
+                mbid = re.search(r'weibo\.com/\d+/(.+?)\?refer_flag=1001030103_" ', str(div_from)).group(1)
                 url = f'https://weibo.com/ajax/statuses/show?id={mbid}'
-                yield Request(url, self.parse_blog)
+                yield Request(url, parse_blog)
             next_page = re.search('<a href="(.*?)" class="next">下一页</a>', html)
             if next_page:
                 url = 'https://s.weibo.com' + next_page.group(1)
                 yield Request(url)
 
-    def parse_blog(self, response):
-        '''Parse blog info.
-        '''
-
-        ret = json.loads(response.text)
-        if 'retweeted_status' not in ret:
-            item = get_blog_item(ret)
-
-            if self.long_text and item['isLongText']:
-                mbid = item['mblogid']
-                url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
-                yield Request(url, parse_long_text, cb_kwargs={'item': item})
-            else:
-                yield item
-        elif settings.retweet:
-            # TODO: parse retweet blog.
-            pass
-
     def get_search_url(self, dt: datetime, ct='', ci=''):
-        '''Generate search URL.
-        '''
-
         dt_str_from = dt.strftime(self.dt_parse_format)
         dt_str_to = (dt + timedelta(hours=1)).strftime(self.dt_parse_format)
 

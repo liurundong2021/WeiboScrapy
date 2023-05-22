@@ -1,4 +1,10 @@
+import logging
+import os
+from typing import Any
 from datetime import datetime
+from scrapy.http import Response
+from scrapy import Spider
+from scrapy import logformatter
 
 
 # >>> Scrapy Static Settings >>>
@@ -8,7 +14,6 @@ NEWSPIDER_MODULE = "WeiboScrapy.spiders"
 
 ROBOTSTXT_OBEY = False
 COOKIES_ENABLED = False
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
 MEDIA_ALLOW_REDIRECTS = True
 DOWNLOAD_WARNSIZE = 134217728 # 128 MB
 DOWNLOAD_MAXSIZE = 0
@@ -19,34 +24,53 @@ FEED_EXPORT_ENCODING = "utf-8"
 
 # >>> Project Static Settings >>>
 DOWNLOADER_MIDDLEWARES = {
-   'WeiboScrapy.middlewares.CookiePoolMiddleware': 100,
-   'WeiboScrapy.middlewares.ArticleMiddleware': 200
+    'WeiboScrapy.middlewares.CookiePoolMiddleware': 100,
+    'WeiboScrapy.middlewares.ArticleMiddleware': 200,
+    'WeiboScrapy.middlewares.ImageMiddleware': 201,
+    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+    'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400
 }
 ITEM_PIPELINES = {
-   'WeiboScrapy.pipelines.WeiboMediaPipeline': 1,
-   'WeiboScrapy.pipelines.ArticleJsonPipeline': 400
+    'WeiboScrapy.pipelines.WeiboMediaPipeline': 1,
+    'WeiboScrapy.pipelines.ArticleJsonPipeline': 400
 }
+DROPPEDMSG = "Dropped: %(exception)s" + os.linesep + "%(item)s"
+class WeiboLogFormatter(logformatter.LogFormatter):
+    def dropped(
+        self, item: Any, exception: BaseException, response: Response, spider: Spider
+    ) -> dict:
+        """Logs a message when an item is dropped while it is passing through the item pipeline."""
+        return {
+            "level": logging.DEBUG,
+            "msg": DROPPEDMSG,
+            "args": {
+                "exception": exception,
+                "item": item,
+            },
+        }
+LOG_FORMATTER = 'WeiboScrapy.settings.WeiboLogFormatter'
+# DUPEFILTER_DEBUG = True
 # <<< Project Static Settings <<<
 
-
-CONCURRENT_REQUESTS = 4
-DOWNLOAD_DELAY = 0.3
+# JOBDIR = './crawls/search'
+CONCURRENT_REQUESTS = 8
+DOWNLOAD_DELAY = 0.2
 LOG_LEVEL = 'INFO'
 LOG_FILE = f'./log/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
 
 img = True
 video = True
 article = True
-FILES_STORE = './test/media/'        # Directory to save media
+FILES_STORE = './output/media/'        # Directory to save media
 
 long_text = True
-retweet = False   # Crawl retweet blog need to be complete, there is still many bugs, do not crawl retweet blog now.
+retweet = True
 
 search = {
     'keyword': '淄博',
     'time': {
         'from': '2023-04-10-00',
-        'to': '2023-04-11-00'
+        'to': '2023-04-10-01'
     },
     'content': {
         'type': 'all',
@@ -54,11 +78,11 @@ search = {
     }
 }
 history = {
-    'user_file': 'data/淄博_04-01-00_04-17-00/user_split_200/9.jsonl',
+    'user_file': 'output/users_1684738442.jsonl',
     'time': {
-        'from': '2022-04-01',
+        'from': '2023-02-01',
         'to': '2023-04-01'
     },
-    'output_dir': './data/淄博_04-01-00_04-17-00/history/'
+    'output_dir': './output/history/'
 }
-blog_file = './data/blog.jsonl' # For these spider: user, comment, repost
+blog_file = './output/淄博_test_719.jsonl' # For these spider: user, comment, repost

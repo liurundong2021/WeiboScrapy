@@ -13,6 +13,7 @@ from pathlib import Path
 from scrapy.http import Request
 from scrapy.pipelines.files import FilesPipeline
 from scrapy.utils.python import to_bytes
+from scrapy.exceptions import DropItem
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class HistoryPipeline:
     def open_spider(self, spider):
         name = re.search(r".*/(.*)\.jsonl", settings.history["user_file"]).group(1)
         self.output_path = settings.history['output_dir'] + name
-        os.makedirs(self.output_path)
+        os.makedirs(self.output_path, exist_ok=True)
 
     def process_item(self, item, spider):
         uid = item['uid']
@@ -150,3 +151,15 @@ class ArticleJsonPipeline:
                 file['path'] = file_name
                 file['checksum'] = md5(str(atc_json).encode('utf-8')).hexdigest()
         return item
+
+class RetweetFilterPipeline:
+    ids = set()
+    def process_item(self, item, spider):
+        if item['type'] == 'retweet_origin':
+            if item['mblogid'] in self.ids:
+                raise DropItem(f'Duplicated retweet blog - mblogid = {item["mblogid"]}')
+            else:
+                self.ids.add(item['mblogid'])
+                return item
+        else:
+            return item

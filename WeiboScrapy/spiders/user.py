@@ -9,7 +9,6 @@ from WeiboScrapy import settings
 
 class UserSpider(scrapy.Spider):
     name = "user"
-    allowed_domains = ["weibo.com"]
 
     custom_settings = {
         'ITEM_PIPELINES': {

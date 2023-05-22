@@ -6,7 +6,6 @@ from tqdm import tqdm
 from scrapy.http import Request
 from WeiboScrapy import settings
 from WeiboScrapy.util import get_blog_item
-from WeiboScrapy.util import parse_long_text
 
 
 class HistorySpider(scrapy.Spider):
@@ -35,6 +34,8 @@ class HistorySpider(scrapy.Spider):
         self.user_file = settings.history['user_file']
         self.ts_from = int(time.mktime(time.strptime(settings.history['time']['from'], '%Y-%m-%d')))
         self.ts_to = int(time.mktime(time.strptime(settings.history['time']['to'], '%Y-%m-%d')))
+        if self.ts_from > self.ts_to:
+            exit('Time from > time to, set again.')
 
         with open(self.user_file) as f:
             while 1:
@@ -84,25 +85,9 @@ class HistorySpider(scrapy.Spider):
             yield req
         elif data['list']:
             blogs = data['list']
-
-            self.logger.debug(f'{response.url = }, mblogid list = {[blog["mblogid"] for blog in blogs]}')
             for blog in blogs:
-                item = get_blog_item(blog)
-
-                # Only select origin blog.
-                uid = re.search('uid=(\d*)', response.url).group(1)
-                if not settings.retweet and ('retweeted_status' in blog or item['uid'] != uid):
-                    self.logger.debug(f'Not self blog - url = https://weibo.com/{item["uid"]}/{item["mblogid"]}')
-                    continue
-
-                # Get long-text content.
-                if settings.long_text and item['isLongText']:
-                    mbid = item['mblogid']
-                    url = f'https://weibo.com/ajax/statuses/longtext?id={mbid}'
-                    yield Request(url, parse_long_text, cb_kwargs={'item': item})
-                else:
-                    yield item
-
+                for i in get_blog_item(blog):
+                    yield i
             if len(blogs) == 20:
                 url = re.sub('page=(\d*)', lambda matchobj: 'page=' + str(int(matchobj.group(1)) + 1), response.url)
                 yield Request(url)
